@@ -16,3 +16,24 @@ class DataGenerator:
     @staticmethod
     def generate_random_name():
         return fake.user_name()
+
+    @staticmethod
+    def generate_random_image_url():
+        return fake.image_url()
+
+    @staticmethod
+    def generate_random_price():
+        return fake.random_int(100,500)
+
+    @staticmethod
+    def generate_random_description():
+        return fake.text(30)
+
+    @staticmethod
+    def generate_random_boolean():
+        return fake.boolean()
+
+    @staticmethod
+    def generate_random_location():
+        return random.choice(["MSK", "SPB"])
+    
