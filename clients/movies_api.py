@@ -26,14 +26,6 @@ class MoviesApi(CustomRequester):
             **kwargs
         )
 
-    def get_all_genres(self, expected_status=200, **kwargs):
-        return self.send_request(
-            method="GET",
-            endpoint=GENRES,
-            expected_status=expected_status,
-            **kwargs
-        )
-
     def create_movie(self, movie_data, params=None, expected_status=201, **kwargs):
         return self.send_request(
             method="POST",

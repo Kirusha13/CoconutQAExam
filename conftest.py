@@ -71,7 +71,7 @@ def editable_movie(super_admin,new_movie, genre_id):
 
 @pytest.fixture(scope='class')
 def genre_id(api_manager):
-    genres = api_manager.movies_api.get_all_genres().json()
+    genres = api_manager.genres_api.get_all_genres().json()
     assert genres
     genre_id = genres[0]['id']
 
