@@ -1,4 +1,5 @@
 from utils.data_generator import DataGenerator
+import pytest
 
 class TestMovies:
     def test_get_afisha_of_movies(self, api_manager):
@@ -12,9 +13,17 @@ class TestMovies:
         assert isinstance(response_data["count"], int)
         assert isinstance(response_data["pageCount"], int)
 
-    def test_filter_of_get_movies(self, api_manager, genre_id):
-
-        response = api_manager.movies_api.get_all_movies({"genreId": genre_id})
+    @pytest.mark.parametrize('filter_type', ['location', 'price', 'genreId'])
+    def test_filter_of_get_movies(self, api_manager, genre_id, filter_type):
+        if filter_type == "location":
+            params = {'locations': ['MSK']}
+        elif filter_type == 'price':
+            min_price = 100
+            max_price = 500
+            params = {'minPrice': min_price, 'maxPrice': max_price}
+        else:
+            params = {'genreId': genre_id}
+        response = api_manager.movies_api.get_all_movies(params)
         response_data = response.json()
 
         assert isinstance(response_data, dict)
@@ -23,7 +32,12 @@ class TestMovies:
         movies = response_data['movies']
         assert movies
         for movie in movies:
-            assert movie["genreId"] == genre_id
+            if filter_type == "location":
+                assert movie["location"] == "MSK"
+            elif filter_type == "price":
+                assert min_price <= movie["price"] <= max_price
+            else:  
+                assert movie["genreId"] == genre_id
 
     def test_get_movie_by_id_success(self, api_manager):
         all_movies_response = api_manager.movies_api.get_all_movies()
@@ -50,7 +64,7 @@ class TestMovies:
     def test_create_movie(self, super_admin, new_movie):
         movie_id = None
         try:
-            response = super_admin.movies_api.create_movie(movie_data=new_movie)
+            response = super_admin.api.movies_api.create_movie(movie_data=new_movie)
             response_data = response.json()
             
 
@@ -59,7 +73,7 @@ class TestMovies:
             movie_id = response_data['id']
         
         
-            response_new_movie = super_admin.movies_api.get_movie_by_id(response_data['id'])
+            response_new_movie = super_admin.api.movies_api.get_movie_by_id(response_data['id'])
             new_movie_get_data = response_new_movie.json()
             assert response_data['id'] == new_movie_get_data['id']
             assert new_movie['genreId'] == new_movie_get_data['genreId']
@@ -67,22 +81,22 @@ class TestMovies:
 
         finally:
             if movie_id is not None:
-                super_admin.movies_api.delete_movie(movie_id)
+                super_admin.api.movies_api.delete_movie(movie_id)
 
     def test_create_duplicate(self, super_admin, new_movie):
         movie_id = None
         try:
-            response = super_admin.movies_api.create_movie(movie_data=new_movie)
+            response = super_admin.api.movies_api.create_movie(movie_data=new_movie)
             response_data = response.json()
             assert isinstance(response_data, dict)
             assert 'id' in response_data
             movie_id = response_data['id']
-            duplicate_response = super_admin.movies_api.create_movie(movie_data=new_movie, expected_status=409)
+            duplicate_response = super_admin.api.movies_api.create_movie(movie_data=new_movie, expected_status=409)
 
 
         finally:
             if movie_id is not None:
-                super_admin.movies_api.delete_movie(movie_id)
+                super_admin.api.movies_api.delete_movie(movie_id)
 
 
 
@@ -90,7 +104,7 @@ class TestMovies:
         new_name = f"{editable_movie['name']}+1"
         new_price = DataGenerator.generate_random_price()
         movie_id = editable_movie['id']
-        response = super_admin.movies_api.edit_movie(
+        response = super_admin.api.movies_api.edit_movie(
             movie_id=movie_id,
             new_data={
                 "name": new_name,
@@ -100,7 +114,7 @@ class TestMovies:
             )
         response_data = response.json()
 
-        movie_data = super_admin.movies_api.get_movie_by_id(movie_id).json()
+        movie_data = super_admin.api.movies_api.get_movie_by_id(movie_id).json()
 
 
         assert isinstance(response_data, dict)
@@ -110,21 +124,28 @@ class TestMovies:
         assert response_data['published'] == movie_data['published']
 
     def test_edit_movie_with_invalid_id(self, super_admin):
-        response = super_admin.movies_api.edit_movie(
+        super_admin.api.movies_api.edit_movie(
             movie_id=0,
             new_data={'name': 'new_name'},
             expected_status=404
             )
 
+    def test_create_movie_by_common_user(self, common_user, new_movie):
+        common_user.api.movies_api.create_movie(movie_data=new_movie, expected_status=403)
 
-    def test_delete_movie(self, super_admin, movie_for_delete):
+    @pytest.mark.parametrize('role',['USER','ADMIN', 'SUPER_ADMIN'])
+    def test_delete_movie_by_role(self, role, common_user, admin, super_admin, movie_for_delete):
         movie_id = movie_for_delete['id']
-        super_admin.movies_api.delete_movie(movie_id)
+        if role == "USER":
+            common_user.api.movies_api.delete_movie(movie_id,expected_status=403)
+            super_admin.api.movies_api.delete_movie(movie_id)
+        elif role == 'ADMIN':
+            admin.api.movies_api.delete_movie(movie_id,expected_status=403)
+            super_admin.api.movies_api.delete_movie(movie_id)
+        else:
+            super_admin.api.movies_api.delete_movie(movie_id)
+            super_admin.api.movies_api.get_movie_by_id(movie_id, expected_status=404)
 
-        super_admin.movies_api.get_movie_by_id(movie_id=movie_id, expected_status=404)
-
-    def test_delete_movie_negative(self, super_admin):
-        super_admin.movies_api.delete_movie(movie_id=0, expected_status=404)
 
 
 

@@ -2,6 +2,9 @@ import requests
 import pytest
 from clients.api_manager import ApiManager
 from utils.data_generator import DataGenerator
+from resources.user_creds import SuperAdminCreds
+from entities.user import User
+from constants.roles import Roles
 
 
 @pytest.fixture(scope="class")
@@ -28,7 +31,7 @@ def test_user():
         "fullName": DataGenerator.generate_random_name(),
         "password": password,
         "passwordRepeat": password,
-        "roles": ["USER"]
+        "roles": [Roles.USER.value]
     }
 
 @pytest.fixture(scope="function")
@@ -36,15 +39,6 @@ def registered_user(api_manager, test_user):
     response = api_manager.auth_api.register_user(test_user).json()
     test_user["id"] = response["id"]
     return test_user
-
-@pytest.fixture(scope='function')
-def super_admin():
-    http_session = requests.Session()
-    api_manager = ApiManager(session=http_session)
-    api_manager.auth_api.authenticate(("api1@gmail.com","asdqwe123Q"))
-
-    yield api_manager
-    http_session.close()
 
 @pytest.fixture(scope='function')
 def new_movie(genre_id):
@@ -61,12 +55,12 @@ def new_movie(genre_id):
 @pytest.fixture(scope='function')
 def editable_movie(super_admin,new_movie, genre_id):
     new_movie['genreId'] = genre_id
-    response = super_admin.movies_api.create_movie(new_movie)
+    response = super_admin.api.movies_api.create_movie(new_movie)
     created_movie = response.json()
 
     yield created_movie
 
-    super_admin.movies_api.delete_movie(created_movie['id'])
+    super_admin.api.movies_api.delete_movie(created_movie['id'])
 
 
 @pytest.fixture(scope='class')
@@ -80,7 +74,77 @@ def genre_id(api_manager):
 @pytest.fixture(scope='function')
 def movie_for_delete(super_admin,new_movie, genre_id):
     new_movie['genreId'] = genre_id
-    response = super_admin.movies_api.create_movie(new_movie)
+    response = super_admin.api.movies_api.create_movie(new_movie)
     created_movie = response.json()
 
     return created_movie
+
+@pytest.fixture
+def user_session():
+    user_pool = []
+
+    def _create_user_session():
+        session = requests.Session()
+        user_session = ApiManager(session)
+        user_pool.append(user_session)
+        return user_session
+
+    yield _create_user_session
+
+    for user in user_pool:
+        user.close_session()
+
+
+@pytest.fixture
+def super_admin(user_session):
+    new_session = user_session()
+
+    super_admin = User(
+        SuperAdminCreds.USERNAME,
+        SuperAdminCreds.PASSWORD,
+        [Roles.SUPER_ADMIN.value],
+        new_session)
+
+    super_admin.api.auth_api.authenticate(super_admin.creds)
+    return super_admin
+
+@pytest.fixture(scope="function")
+def creation_user_data(test_user):
+    updated_data = test_user.copy()
+    updated_data.update({
+        "verified": True,
+        "banned": False
+    })
+    return updated_data
+
+@pytest.fixture
+def common_user(user_session, super_admin, creation_user_data):
+    new_session = user_session()
+
+    common_user = User(
+        creation_user_data['email'],
+        creation_user_data['password'],
+        [Roles.USER.value],
+        new_session)
+
+    super_admin.api.user_api.create_user(creation_user_data)
+    common_user.api.auth_api.authenticate(common_user.creds)
+    return common_user
+
+@pytest.fixture
+def admin(user_session, super_admin, creation_user_data):
+    new_session = user_session()
+    admin_data = creation_user_data.copy()
+    admin_data['email'] = DataGenerator.generate_random_email()
+
+    admin = User(
+        admin_data['email'],
+        admin_data['password'],
+        [Roles.ADMIN.value],
+        new_session)
+
+    admin_id = super_admin.api.user_api.create_user(admin_data).json()['id']
+    super_admin.api.user_api.edit_user(admin_id,{'roles': [Roles.ADMIN.value]})
+
+    admin.api.auth_api.authenticate(admin.creds)
+    return admin
