@@ -5,12 +5,12 @@ GENRES = '/genres'
 
 class GenresApi(CustomRequester):
     def __init__(self, session):
-            super().__init__(session=session, base_url=MOVIES_BASE_URL)
+        super().__init__(session=session, base_url=MOVIES_BASE_URL)
 
     def get_all_genres(self, expected_status=200, **kwargs):
-            return self.send_request(
-                method="GET",
-                endpoint=GENRES,
-                expected_status=expected_status,
-                **kwargs
-            )
+        return self.send_request(
+            method="GET",
+            endpoint=GENRES,
+            expected_status=expected_status,
+            **kwargs
+        )

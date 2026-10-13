@@ -45,7 +45,7 @@ class TestMovies:
         assert {"name", "price", "description", "genreId", "id"} <= response_data.keys()
 
     def test_negative_get_movie_by_id(self, api_manager):
-        response = api_manager.movies_api.get_movie_by_id(0, expected_status=404)
+        api_manager.movies_api.get_movie_by_id(0, expected_status=404)
 
     def test_create_movie(self, super_admin, new_movie):
         movie_id = None
@@ -119,12 +119,12 @@ class TestMovies:
 
     def test_delete_movie(self, super_admin, movie_for_delete):
         movie_id = movie_for_delete['id']
-        response = super_admin.movies_api.delete_movie(movie_id)
+        super_admin.movies_api.delete_movie(movie_id)
 
-        get_movie = super_admin.movies_api.get_movie_by_id(movie_id=movie_id, expected_status=404)
+        super_admin.movies_api.get_movie_by_id(movie_id=movie_id, expected_status=404)
 
     def test_delete_movie_negative(self, super_admin):
-        response = super_admin.movies_api.delete_movie(movie_id=0, expected_status=404)
+        super_admin.movies_api.delete_movie(movie_id=0, expected_status=404)
 
 
 

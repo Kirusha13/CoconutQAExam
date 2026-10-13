@@ -2,7 +2,6 @@ from custom_requester.custom_requester import CustomRequester
 from config.base_urls import MOVIES_BASE_URL
 
 MOVIES = '/movies'
-GENRES = '/genres'
 
 class MoviesApi(CustomRequester):
     def __init__(self, session):
