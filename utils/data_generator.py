@@ -6,8 +6,10 @@ class DataGenerator:
 
     @staticmethod
     def generate_random_password():
-        return "".join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=10))
-
+        password = random.choices('abcdefghiklmnopqrstuvwzyx')
+        password += random.choices('0123456789')
+        password += random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8)
+        return "".join(password)
     @staticmethod
     def generate_random_email():
         random_string = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
