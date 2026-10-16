@@ -1,128 +1,140 @@
 from utils.data_generator import DataGenerator
-import pytest
+from models.movies_models import MoviesPage, MovieResponse, Movie
+import pytest, allure
 
+@allure.feature("Тестирование фильмов")
+@pytest.mark.movies
 class TestMovies:
+    @allure.title("Тест получения списка фильмов")
+    @allure.description("Этот тест проверяет корректность полученного списка фильмов.")
     def test_get_afisha_of_movies(self, api_manager):
-        response = api_manager.movies_api.get_all_movies()
-        response_data = response.json()
+        with allure.step("Отправка, получение и обработка запроса списка фильмов"):
+            response = api_manager.movies_api.get_all_movies()
+            movies_page = MoviesPage(**response.json())
 
-        assert isinstance(response_data, dict)
-        assert response_data["page"] == 1
-        assert response_data["pageSize"] == 10
-        assert isinstance(response_data["movies"], list)
-        assert isinstance(response_data["count"], int)
-        assert isinstance(response_data["pageCount"], int)
+        with allure.step("Проверка корректности полученных данных"):
+            assert movies_page.page == 1
+            assert movies_page.pageSize == 10
 
+    @allure.title("Тест получения списка фильмов, используя различные фильтры")
     @pytest.mark.parametrize('filter_type', ['location', 'price', 'genreId'])
     def test_filter_of_get_movies(self, api_manager, genre_id, filter_type):
-        if filter_type == "location":
-            params = {'locations': ['MSK']}
-        elif filter_type == 'price':
-            min_price = 100
-            max_price = 500
-            params = {'minPrice': min_price, 'maxPrice': max_price}
-        else:
-            params = {'genreId': genre_id}
-        response = api_manager.movies_api.get_all_movies(params)
-        response_data = response.json()
-
-        assert isinstance(response_data, dict)
-        assert "movies" in response_data
-        assert isinstance(response_data["movies"], list)
-        movies = response_data['movies']
-        assert movies
-        for movie in movies:
+        with allure.step("Получение фильтра и создание параметров запроса"):
             if filter_type == "location":
-                assert movie["location"] == "MSK"
-            elif filter_type == "price":
-                assert min_price <= movie["price"] <= max_price
-            else:  
-                assert movie["genreId"] == genre_id
+                params = {'locations': ['MSK']}
+            elif filter_type == 'price':
+                min_price = 100
+                max_price = 500
+                params = {'minPrice': min_price, 'maxPrice': max_price}
+            else:
+                params = {'genreId': genre_id}
+        with allure.step("Отправка, получение и обработка запроса списка фильмов"):
+            response = api_manager.movies_api.get_all_movies(params)
+            movies_page = MoviesPage(**response.json())
 
+        with allure.step("Создание списка фильмов"):
+            movies = movies_page.movies
+            assert movies
+        with allure.step("Перебор и проверка фильмов по фильтрам"):
+            for movie in movies:
+                if filter_type == "location":
+                    assert movie.location == "MSK"
+                elif filter_type == "price":
+                    assert min_price <= movie.price <= max_price
+                else:  
+                    assert movie.genreId == genre_id
+
+    @allure.title("Тест получения данных о фильме по id")
     def test_get_movie_by_id_success(self, api_manager):
-        all_movies_response = api_manager.movies_api.get_all_movies()
-        all_movies_response_data = all_movies_response.json()
+        with allure.step("Отправка, получение и обработка запроса списка фильмов"):
+            movies_response = api_manager.movies_api.get_all_movies()
+            movies_page = MoviesPage(**movies_response.json())
 
-        assert isinstance(all_movies_response_data, dict)
-        assert "movies" in all_movies_response_data
-        assert isinstance(all_movies_response_data["movies"], list)
-        all_movies = all_movies_response_data['movies']
-        assert all_movies
-        movie_id = all_movies[0]['id']
+        with allure.step("Взятие id одного фильма из непустого спика"):
+            all_movies = movies_page.movies
+            assert all_movies
+            movie_id = all_movies[0].id
 
-        response = api_manager.movies_api.get_movie_by_id(movie_id)
-        response_data = response.json()
+        with allure.step("Отправка, получение и обработка запроса фильма"):
+            response = api_manager.movies_api.get_movie_by_id(movie_id)
+            movie = MovieResponse(**response.json())
 
-        assert isinstance(response_data, dict)
-        assert "id" in response_data
-        assert response_data['id'] == movie_id
-        assert {"name", "price", "description", "genreId", "id"} <= response_data.keys()
+        with allure.step("Проверка на взятие верного фильма"):
+            assert movie.id == movie_id
 
+    @allure.title("Негативный тест получения данных о несуществующем фильме по id")
+    @pytest.mark.negative
     def test_negative_get_movie_by_id(self, api_manager):
         api_manager.movies_api.get_movie_by_id(0, expected_status=404)
 
+    @allure.title("Тест создания фильма")
     def test_create_movie(self, super_admin, new_movie):
         movie_id = None
-        try:
-            response = super_admin.api.movies_api.create_movie(movie_data=new_movie)
-            response_data = response.json()
+        with allure.step("Попытка создания и дальнейшего получения данных о фильме"):
+            try:
+                with allure.step("Получение и обработка запроса создания фильма"):
+                    response = super_admin.api.movies_api.create_movie(movie_data=new_movie)
+                    created_movie = MovieResponse(**response.json())
+
+                    movie_id = created_movie.id
             
+                with allure.step("Получение фильма по id"):
+                    response_new_movie = super_admin.api.movies_api.get_movie_by_id(created_movie.id)
+                    movie_from_get = Movie(**response_new_movie.json())
 
-            assert isinstance(response_data, dict)
-            assert 'id' in response_data
-            movie_id = response_data['id']
-        
-        
-            response_new_movie = super_admin.api.movies_api.get_movie_by_id(response_data['id'])
-            new_movie_get_data = response_new_movie.json()
-            assert response_data['id'] == new_movie_get_data['id']
-            assert new_movie['genreId'] == new_movie_get_data['genreId']
-            assert new_movie['name'] == new_movie_get_data['name']
+                with allure.step("Проверка корректности полученных данных о фильме"):
+                    assert created_movie.id == movie_from_get.id
+                    assert new_movie['genreId'] == movie_from_get.genreId
+                    assert new_movie['name'] == movie_from_get.name
 
-        finally:
-            if movie_id is not None:
-                super_admin.api.movies_api.delete_movie(movie_id)
+            finally:
+                with allure.step("Удаление фильма в конце выполнения теста"):
+                    if movie_id is not None:
+                        super_admin.api.movies_api.delete_movie(movie_id)
 
+    @allure.title("Негативный тест создания дубликата фильма")
+    @pytest.mark.negative
     def test_create_duplicate(self, super_admin, new_movie):
         movie_id = None
         try:
-            response = super_admin.api.movies_api.create_movie(movie_data=new_movie)
-            response_data = response.json()
-            assert isinstance(response_data, dict)
-            assert 'id' in response_data
-            movie_id = response_data['id']
-            duplicate_response = super_admin.api.movies_api.create_movie(movie_data=new_movie, expected_status=409)
-
-
+            with allure.step("Создание нового фильма"):
+                response = super_admin.api.movies_api.create_movie(movie_data=new_movie)
+                movie_id = MovieResponse(**response.json()).id
+            with allure.step("Попытка создания дубликата фильма"):
+                super_admin.api.movies_api.create_movie(movie_data=new_movie, expected_status=409)
         finally:
-            if movie_id is not None:
-                super_admin.api.movies_api.delete_movie(movie_id)
+            with allure.step("Удаление фильма в конце выполнения теста"):
+                if movie_id is not None:
+                    super_admin.api.movies_api.delete_movie(movie_id)
 
-
-
+    @allure.title("Тест изменения данных о фильме")
     def test_edit_movie(self, super_admin, editable_movie):
-        new_name = f"{editable_movie['name']}+1"
-        new_price = DataGenerator.generate_random_price()
-        movie_id = editable_movie['id']
-        response = super_admin.api.movies_api.edit_movie(
-            movie_id=movie_id,
-            new_data={
-                "name": new_name,
-                "price": new_price,
-                "published": not(editable_movie['published'])
-            }
-            )
-        response_data = response.json()
+        with allure.step("Создание новых данных о фильме"):
+            new_name = f"{editable_movie['name']}+1"
+            new_price = DataGenerator.generate_random_price()
+            movie_id = editable_movie['id']
+        with allure.step("Изменение данных о фильме"):
+            response = super_admin.api.movies_api.edit_movie(
+                movie_id=movie_id,
+                new_data={
+                    "name": new_name,
+                    "price": new_price,
+                    "published": not(editable_movie['published'])
+                }
+                )
+            edit_movie = MovieResponse(**response.json())
 
-        movie_data = super_admin.api.movies_api.get_movie_by_id(movie_id).json()
+        with allure.step("Получение и сверка новых данных о фильме"):
+            movie_data = super_admin.api.movies_api.get_movie_by_id(movie_id)
+            movie_from_get = Movie(**movie_data.json())
 
+            assert edit_movie.id == movie_from_get.id
+            assert edit_movie.name == movie_from_get.name
+            assert edit_movie.price == movie_from_get.price
+            assert edit_movie.published == movie_from_get.published
 
-        assert isinstance(response_data, dict)
-        assert response_data['id'] == movie_data['id']
-        assert response_data['name'] == movie_data['name']
-        assert response_data['price'] == movie_data['price']
-        assert response_data['published'] == movie_data['published']
-
+    @allure.title("Негативный тест изменения данных о несуществующем фильме")
+    @pytest.mark.negative
     def test_edit_movie_with_invalid_id(self, super_admin):
         super_admin.api.movies_api.edit_movie(
             movie_id=0,
@@ -130,21 +142,25 @@ class TestMovies:
             expected_status=404
             )
 
+    @allure.title("Негативный тест на создание фильма ОБЫЧНЫМ пользователем")
+    @pytest.mark.negative
     def test_create_movie_by_common_user(self, common_user, new_movie):
         common_user.api.movies_api.create_movie(movie_data=new_movie, expected_status=403)
 
+    @allure.title("Тест проверки удаления фильмов пользователями разных ролей")
     @pytest.mark.parametrize('role',['USER','ADMIN', 'SUPER_ADMIN'])
     def test_delete_movie_by_role(self, role, common_user, admin, super_admin, movie_for_delete):
         movie_id = movie_for_delete['id']
-        if role == "USER":
-            common_user.api.movies_api.delete_movie(movie_id,expected_status=403)
-            super_admin.api.movies_api.delete_movie(movie_id)
-        elif role == 'ADMIN':
-            admin.api.movies_api.delete_movie(movie_id,expected_status=403)
-            super_admin.api.movies_api.delete_movie(movie_id)
-        else:
-            super_admin.api.movies_api.delete_movie(movie_id)
-            super_admin.api.movies_api.get_movie_by_id(movie_id, expected_status=404)
+        with allure.step("Определение роли, создание запроса о удалении фильма и последующее его удаление"):
+            if role == "USER":
+                common_user.api.movies_api.delete_movie(movie_id,expected_status=403)
+                super_admin.api.movies_api.delete_movie(movie_id)
+            elif role == 'ADMIN':
+                admin.api.movies_api.delete_movie(movie_id,expected_status=403)
+                super_admin.api.movies_api.delete_movie(movie_id)
+            else:
+                super_admin.api.movies_api.delete_movie(movie_id)
+                super_admin.api.movies_api.get_movie_by_id(movie_id, expected_status=404)
 
 
 
