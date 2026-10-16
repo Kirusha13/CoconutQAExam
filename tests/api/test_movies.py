@@ -1,5 +1,5 @@
 from utils.data_generator import DataGenerator
-from models.movies_models import MoviesPage, MovieResponse, Movie
+from models.movies_models import MoviesPage, MovieResponse, MovieDetailsResponse
 import pytest, allure
 
 @allure.feature("Тестирование фильмов")
@@ -17,32 +17,38 @@ class TestMovies:
             assert movies_page.pageSize == 10
 
     @allure.title("Тест получения списка фильмов, используя различные фильтры")
-    @pytest.mark.parametrize('filter_type', ['location', 'price', 'genreId'])
-    def test_filter_of_get_movies(self, api_manager, genre_id, filter_type):
-        with allure.step("Получение фильтра и создание параметров запроса"):
-            if filter_type == "location":
-                params = {'locations': ['MSK']}
-            elif filter_type == 'price':
-                min_price = 100
-                max_price = 500
-                params = {'minPrice': min_price, 'maxPrice': max_price}
-            else:
-                params = {'genreId': genre_id}
+    @pytest.mark.parametrize(
+        ('params', 'movie_check'),
+        [
+            pytest.param(
+                lambda _: {'locations': ['MSK']},
+                lambda movie, _: movie.location == 'MSK',
+                id='location'
+            ),
+            pytest.param(
+                lambda _: {'minPrice': 100, 'maxPrice': 500},
+                lambda movie, _: 100 <= movie.price <= 500,
+                id='price'
+            ),
+            pytest.param(
+                lambda genre_id: {'genreId': genre_id},
+                lambda movie, genre_id: movie.genreId == genre_id,
+                id='genre'
+            ),
+            
+        ])
+    def test_filter_of_get_movies(self, api_manager, genre_id, params, movie_check):
         with allure.step("Отправка, получение и обработка запроса списка фильмов"):
-            response = api_manager.movies_api.get_all_movies(params)
-            movies_page = MoviesPage(**response.json())
+            response = api_manager.movies_api.get_all_movies(params(genre_id))
+            payload = response.json()
+            movies_page = MoviesPage(**payload)
 
         with allure.step("Создание списка фильмов"):
             movies = movies_page.movies
             assert movies
         with allure.step("Перебор и проверка фильмов по фильтрам"):
             for movie in movies:
-                if filter_type == "location":
-                    assert movie.location == "MSK"
-                elif filter_type == "price":
-                    assert min_price <= movie.price <= max_price
-                else:  
-                    assert movie.genreId == genre_id
+                assert movie_check(movie, genre_id)
 
     @allure.title("Тест получения данных о фильме по id")
     def test_get_movie_by_id_success(self, api_manager):
@@ -80,7 +86,7 @@ class TestMovies:
             
                 with allure.step("Получение фильма по id"):
                     response_new_movie = super_admin.api.movies_api.get_movie_by_id(created_movie.id)
-                    movie_from_get = Movie(**response_new_movie.json())
+                    movie_from_get = MovieDetailsResponse(**response_new_movie.json())
 
                 with allure.step("Проверка корректности полученных данных о фильме"):
                     assert created_movie.id == movie_from_get.id
@@ -126,7 +132,7 @@ class TestMovies:
 
         with allure.step("Получение и сверка новых данных о фильме"):
             movie_data = super_admin.api.movies_api.get_movie_by_id(movie_id)
-            movie_from_get = Movie(**movie_data.json())
+            movie_from_get = MovieDetailsResponse(**movie_data.json())
 
             assert edit_movie.id == movie_from_get.id
             assert edit_movie.name == movie_from_get.name
@@ -147,36 +153,22 @@ class TestMovies:
     def test_create_movie_by_common_user(self, common_user, new_movie):
         common_user.api.movies_api.create_movie(movie_data=new_movie, expected_status=403)
 
-    @allure.title("Тест проверки удаления фильмов пользователями разных ролей")
-    @pytest.mark.parametrize('role',['USER','ADMIN', 'SUPER_ADMIN'])
-    def test_delete_movie_by_role(self, role, common_user, admin, super_admin, movie_for_delete):
+    @allure.title("Тест проверки удаления фильмов ролью SUPER_ADMIN")
+    def test_delete_movie_by_super_admin(self, super_admin, movie_for_delete):
         movie_id = movie_for_delete['id']
-        with allure.step("Определение роли, создание запроса о удалении фильма и последующее его удаление"):
-            if role == "USER":
-                common_user.api.movies_api.delete_movie(movie_id,expected_status=403)
-                super_admin.api.movies_api.delete_movie(movie_id)
-            elif role == 'ADMIN':
-                admin.api.movies_api.delete_movie(movie_id,expected_status=403)
-                super_admin.api.movies_api.delete_movie(movie_id)
-            else:
-                super_admin.api.movies_api.delete_movie(movie_id)
-                super_admin.api.movies_api.get_movie_by_id(movie_id, expected_status=404)
+        super_admin.api.movies_api.delete_movie(movie_id)
+        super_admin.api.movies_api.get_movie_by_id(movie_id, expected_status=404)
 
-
-
-
-        
-        
-
-        
-
-
-
-
-
-
-
-
-
-        
-        
+    @allure.title("Тест проверки удаления фильмов пользователями разных ролей")
+    @pytest.mark.parametrize(
+        'role',
+        [
+            pytest.param("USER", marks=pytest.mark.negative, id='user'),
+            pytest.param("ADMIN", marks=pytest.mark.negative, id='admin')
+        ])
+    def test_delete_movie_by_user_and_admin(self, role, common_user, admin, super_admin, movie_for_delete):
+        movie_id = movie_for_delete['id']
+        role_api = {"USER": common_user, "ADMIN": admin}[role]
+        role_api.api.movies_api.delete_movie(movie_id,expected_status=403)
+        super_admin.api.movies_api.delete_movie(movie_id)
+        super_admin.api.movies_api.get_movie_by_id(movie_id, expected_status=404)

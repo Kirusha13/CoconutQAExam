@@ -1,18 +1,19 @@
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Literal
 
 class Genre(BaseModel):
     name: str
 
-class User(BaseModel):
+class ReviewUser(BaseModel):
     fullName: str
 
 class Review(BaseModel):
     userId: str
-    rating: int
+    rating: int = Field(ge=1, le=5)
     text: str
     createdAt: datetime
-    user: User
+    user: ReviewUser
 
 class MovieResponse(BaseModel):
 
@@ -21,14 +22,14 @@ class MovieResponse(BaseModel):
     price: int
     description: str
     imageUrl: str | None
-    location: str
+    location: Literal['MSK', 'SPB']
     published: bool
     genreId: int
     genre: Genre
     createdAt: datetime
-    rating: float
+    rating: float = Field(ge=0, le=5) 
 
-class Movie(MovieResponse):
+class MovieDetailsResponse(MovieResponse):
     reviews: list[Review]
 
 class MoviesPage(BaseModel):
