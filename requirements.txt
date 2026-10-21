@@ -1,3 +1,11 @@
 pytest
+pytest_mock
+pytest-check
 requests
 faker
+python-dotenv
+pydantic
+psycopg2
+sqlalchemy
+allure-pytest
+allure-python-commons
