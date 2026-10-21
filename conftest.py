@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from db_requester.db_client import get_db_session
 from db_requester.db_helpers import DBHelper
 
+DEFAULT_UI_TIMEOUT = 30000
+
 
 @pytest.fixture(scope="class")
 def session():
@@ -175,3 +177,23 @@ def created_test_user(db_helper):
     yield user
     if db_helper.get_user_by_id(user.id):
         db_helper.delete_user(user)
+
+@pytest.fixture(scope="session")
+def browser(playwright):
+    browser = playwright.chromium.launch(headless=False)
+    yield browser
+    browser.close()
+
+@pytest.fixture(scope="function")
+def context(browser):
+    context = browser.new_context()
+    context.tracing.start(screenshots=True, snapshots=True, sources=True)
+    context.set_default_timeout(DEFAULT_UI_TIMEOUT)
+    yield context
+    context.close()  
+
+@pytest.fixture(scope="function") 
+def page(context):
+    page = context.new_page()
+    yield page
+    page.close() 
