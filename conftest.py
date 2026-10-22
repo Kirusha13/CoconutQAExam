@@ -13,6 +13,7 @@ from utils.ui_tools import Tools
 from playwright.sync_api import Page
 from pages.register_page import RegisterPage
 from pages.login_page import LoginPage
+from pages.movie_page import MoviePage
 
 DEFAULT_UI_TIMEOUT = 30000
 
@@ -216,3 +217,8 @@ def login_page(page: Page) -> LoginPage:
     login_page = LoginPage(page)
     login_page.open()
     return login_page
+
+@pytest.fixture
+def movie_page(page: Page, editable_movie: dict) -> MoviePage:
+    movie_page = MoviePage(page, editable_movie['id'])
+    return movie_page
