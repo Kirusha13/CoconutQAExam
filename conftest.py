@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 from db_requester.db_client import get_db_session
 from db_requester.db_helpers import DBHelper
 from utils.ui_tools import Tools
+from playwright.sync_api import Page
+from pages.register_page import RegisterPage
+from pages.login_page import LoginPage
 
 DEFAULT_UI_TIMEOUT = 30000
 
@@ -201,3 +204,15 @@ def page(context):
     page = context.new_page()
     yield page
     page.close() 
+
+@pytest.fixture
+def register_page(page: Page) -> RegisterPage:
+    register_page = RegisterPage(page)
+    register_page.open()
+    return register_page
+
+@pytest.fixture
+def login_page(page: Page) -> LoginPage:
+    login_page = LoginPage(page)
+    login_page.open()
+    return login_page
