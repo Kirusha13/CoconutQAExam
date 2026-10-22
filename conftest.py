@@ -9,6 +9,13 @@ from models.base_models import TestUser, RegisterUserResponse
 from sqlalchemy.orm import Session
 from db_requester.db_client import get_db_session
 from db_requester.db_helpers import DBHelper
+from utils.ui_tools import Tools
+from playwright.sync_api import Page
+from pages.register_page import RegisterPage
+from pages.login_page import LoginPage
+from pages.movie_page import MoviePage
+
+DEFAULT_UI_TIMEOUT = 30000
 
 
 @pytest.fixture(scope="class")
@@ -175,3 +182,43 @@ def created_test_user(db_helper):
     yield user
     if db_helper.get_user_by_id(user.id):
         db_helper.delete_user(user)
+
+@pytest.fixture(scope="session")
+def browser(playwright):
+    browser = playwright.chromium.launch(headless=False)
+    yield browser
+    browser.close()
+
+@pytest.fixture(scope="function")
+def context(browser):
+    context = browser.new_context()
+    context.tracing.start(screenshots=True, snapshots=True, sources=True)
+    context.set_default_timeout(DEFAULT_UI_TIMEOUT)
+    yield context
+    log_name = f"trace_{Tools.get_timestamp()}.zip"
+    trace_path = Tools.files_dir('playwright_trace', log_name)
+    context.tracing.stop(path=trace_path)
+    context.close()
+
+@pytest.fixture(scope="function") 
+def page(context):
+    page = context.new_page()
+    yield page
+    page.close() 
+
+@pytest.fixture
+def register_page(page: Page) -> RegisterPage:
+    register_page = RegisterPage(page)
+    register_page.open()
+    return register_page
+
+@pytest.fixture
+def login_page(page: Page) -> LoginPage:
+    login_page = LoginPage(page)
+    login_page.open()
+    return login_page
+
+@pytest.fixture
+def movie_page(page: Page, editable_movie: dict) -> MoviePage:
+    movie_page = MoviePage(page, editable_movie['id'])
+    return movie_page

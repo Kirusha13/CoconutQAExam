@@ -59,4 +59,8 @@ class DataGenerator:
     @staticmethod
     def generate_random_int(max_value: int) -> int:
         return random.randint(1, max_value)
+
+    @staticmethod
+    def generate_random_number() -> str:
+        return fake.numerify(text="##########")
     
